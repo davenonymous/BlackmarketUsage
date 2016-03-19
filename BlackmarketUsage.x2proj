@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="12.0" DefaultTargets="Default" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Guid>ced6d122-c486-4960-942c-b6c0c62493a1</Guid>
+    <Name>Blackmarket Usage</Name>
+    <Description>Displays possible usage of items on the blackmarket sell screen. 
+No more wondering whether you still need Advent Trooper Corpses. 
+
+Data is gathered dynamically, so modded items etc should show up as well. 
+Only shows items of your current research level.</Description>
+    <SteamPublishID>0</SteamPublishID>
+    <AssemblyName>BlackmarketUsage</AssemblyName>
+    <RootNamespace>BlackmarketUsage</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Folder Include="Config\" />
+    <Folder Include="Content\" />
+    <Folder Include="Localization\" />
+    <Folder Include="Src\" />
+    <Folder Include="Src\BlackmarketUsage\" />
+    <Folder Include="Src\BlackmarketUsage\Classes\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="ReadMe.txt" />
+    <Content Include="ModPreview.jpg" />
+    <Content Include="Config\XComEditor.ini" />
+    <Content Include="Config\XComEngine.ini" />
+    <Content Include="Config\XComGame.ini" />
+    <Content Include="Localization\XComGame.int" />
+    <Content Include="Src\BlackmarketUsage\Classes\UIAddToBlackmarket.uc">
+      <SubType>Content</SubType>
+    </Content>
+    <Content Include="Src\BlackmarketUsage\Classes\X2DownloadableContentInfo_BlackmarketUsage.uc" />
+  </ItemGroup>
+  <Import Project="$(MSBuildLocalExtensionPath)\XCOM2.targets" />
+</Project>
