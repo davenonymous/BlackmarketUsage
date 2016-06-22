@@ -10,11 +10,15 @@ var config int ShowSpoilers;
 var bool hasUnknownTech;
 
 event OnInit(UIScreen Screen) {
-	Maketh(UIBlackMarket_Sell(Screen));
+	if (UIBlackMarket_Sell(Screen) != none) {
+		Maketh(UIBlackMarket_Sell(Screen));
+	}
 }
 
 Event OnReceiveFocus(UIScreen Screen) { 
-	Maketh(UIBlackMarket_Sell(Screen));
+	if (UIBlackMarket_Sell(Screen) != none) {
+		Maketh(UIBlackMarket_Sell(Screen));
+	}
 } 
 
 function Maketh(UIBlackMarket_Sell screen, optional bool refresh) {
@@ -348,6 +352,7 @@ function string coloredText(string text, string htmlColor) {
 	return "<font color='#"$htmlColor$"'>"$text$"</font>";
 }
 
-defaultproperties {
-	ScreenClass = class'UIBlackMarket_Sell';
+defaultproperties
+{
+	ScreenClass = none;
 }
