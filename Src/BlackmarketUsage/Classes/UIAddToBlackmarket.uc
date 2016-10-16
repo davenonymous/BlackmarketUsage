@@ -1,13 +1,25 @@
 class UIAddToBlackmarket extends UIScreenListener config(BlackmarketUsage);
 
-var UIBlackMarket_Sell SellScreen;
-var UIText DisplayText;
+// performance optimization (lessen the amount of function calls)
+`define coloredtext(text, color) "<font color='#"$`color$"'>"$`text$"</font>"
+
 var X2ItemTemplateManager ItemTemplateManager;
 
 var config int ShowSpoilers;
 
-// TODO: Clean this up: No global variables, don't pass text around etc.
-var bool hasUnknownTech;
+
+// iterate over everything buildable, and fill the list
+// lookups using .Find happen in native code and are fast
+struct UsedResource
+{
+	var name TemplateName;
+	var string Uses;
+	var bool bHasUnknownCost;
+};
+
+var array<UsedResource> GatheredCosts;
+
+var array<name> ItemsToSell;
 
 event OnInit(UIScreen Screen) {
 	if (UIBlackMarket_Sell(Screen) != none) {
@@ -24,84 +36,99 @@ Event OnReceiveFocus(UIScreen Screen) {
 function Maketh(UIBlackMarket_Sell screen, optional bool refresh) {
 	local int itemIndex;
 	local UIBlackMarket_SellItem ListItem;	
-	local string newText;
+	
 	local UIImage UsableImage;
+
+	local UsedResource Res;
+	local int IndexInArray;
 
 	ItemTemplateManager = class'X2ItemTemplateManager'.static.GetItemTemplateManager();
 
 	for(itemIndex = 0; itemIndex < screen.List.ItemCount; itemIndex++) {
 		ListItem = UIBlackMarket_SellItem(screen.List.GetItem(itemIndex));		
+		
+		// build a cache list of items we can actually sell to not calculate unneccessary costs
+		ItemsToSell.AddItem(ListItem.ItemTemplate.DataName);
+	}
+	
+	// fill all known costs
+	SearchAllBuildableItems();
+	SearchAllFacilities();
+	SearchAllTechs();
 
-		newText = GetTooltipText(ListItem);
-		if(newText != "") {			
+	// read the costs and apply them to the specific list item
+	for(itemIndex = 0; itemIndex < screen.List.ItemCount; itemIndex++) {
+		ListItem = UIBlackMarket_SellItem(screen.List.GetItem(itemIndex));		
+		IndexInArray = GatheredCosts.Find('TemplateName', ListItem.ItemTemplate.DataName);
+
+		if (IndexInArray == INDEX_NONE)
+		{
+			continue;
+		}
+		Res = GatheredCosts[IndexInArray];
+		if (Res.Uses != "" || Res.bHasUnknownCost == true)
+		{
 			UsableImage = ListItem.Spawn(class'UIImage', ListItem).InitImage(, class'UIUtilities_Image'.static.GetToDoWidgetImagePath(eUIToDoCat_MAX));
 			UsableImage.ProcessMouseEvents();
 			UsableImage.SetScale(0.8);			
 			UsableImage.SetPosition(318, 7);
 			UsableImage.SetColor(class'UIUtilities_Colors'.const.ENGINEERING_HTML_COLOR);
 			UsableImage.SetAlpha(0.3);
-			UsableImage.SetTooltipText("<font size=\"16\">"$newText$"</font>", "Used for:");
+			UsableImage.SetTooltipText("<font size=\"16\">"$Res.Uses $ ((Res.bHasUnknownCost) ? `coloredText("???", class'UIUtilities_Colors'.const.FADED_HTML_COLOR) : "") $"</font>", "Used for:");
 		}
+
 	}
 }
 
-function string GetTooltipText(UIBlackMarket_SellItem ItemPanel) {
-	local string newText;
-	hasUnknownTech = false;
-	newText  = getBuildableItemsText(ItemPanel.ItemTemplate);
-	newText $= getFacilitiesText(ItemPanel.ItemTemplate);
-	newText $= getTechsText(ItemPanel.ItemTemplate);
 
-	if(hasUnknownTech && ShowSpoilers == 1) {
-		newText $= coloredText("???", class'UIUtilities_Colors'.const.FADED_HTML_COLOR);
+
+// first normal items, then squad upgrades
+function int SortBuildableItems(X2ItemTemplate A, X2ItemTemplate B) {
+	if (A.bOneTimeBuild && !B.bOneTimeBuild)
+	{
+		return -1;
 	}
-
-	return newText;
+	return 0;
 }
 
 
-
-
-function string getBuildableItemsText(X2ItemTemplate item) {
+function SearchAllBuildableItems()
+{
 	local X2ItemTemplate BuildableItem;
+
 	local array<X2ItemTemplate> BuildableItems;
 	local string itemName;
 	local string itemColor;
-	local string result;
 
-	result = "";
 
-	BuildableItems = ItemTemplateManager.GetBuildableItemTemplates();		
+	local bool bUnknown;
+
 	BuildableItems = class'TechTreeHelpers'.static.GetFutureBuildableItems();
+	BuildableItems.Sort(SortBuildableItems);
+	
 	foreach BuildableItems(BuildableItem) {	
-		if(!IsItemRequired(BuildableItem.Cost, item)) {
-			continue;
-		}
-
+		
 		itemName = BuildableItem.GetItemFriendlyName();
 		itemColor = class'UIUtilities_Colors'.const.CASH_HTML_COLOR;
 		if(BuildableItem.ItemCat == 'weapon') {
 			itemColor = class'UIUtilities_Colors'.const.BAD_HTML_COLOR;
 		}
-
+		bUnknown = false;
 		if(!IsItemVisible(BuildableItem)) {
 			if(ShowSpoilers == 0) {
 				continue;
 			} else if(ShowSpoilers == 1) {
-				hasUnknownTech = true;
-				continue;
+				bUnknown = true;
 			} else if(ShowSpoilers == 2) {
 				itemName = itemName$"*";
 			}
 		}
 
-		result $= GetStringForCosts(BuildableItem.Cost, item, coloredText(itemName, itemColor));
+		FillInCostsForCost(BuildableItem.Cost, `coloredText(itemName, itemColor), bUnknown);
 	}
-
-	return result;
 }
 
-function string getFacilitiesText(X2ItemTemplate item) {
+function SearchAllFacilities() {
 	local array<X2FacilityTemplate> BuildableFacilities;
 	local X2FacilityTemplate BuildableFacility;
 
@@ -111,57 +138,51 @@ function string getFacilitiesText(X2ItemTemplate item) {
 	local XComGameState_HeadquartersXCom XComHQ;
 	local string facilityName;
 	local string facilityColor;
-	local string result;
+
+	local bool bUnknown;
 
 	XComHQ = `XCOMHQ;
 	facilityColor = class'UIUtilities_Colors'.const.PERK_HTML_COLOR;
 	
-	result = "";
 
 	BuildableFacilities = class'TechTreeHelpers'.static.GetFutureFacilities();
 	foreach BuildableFacilities(BuildableFacility) {
-		if(!IsItemRequired(BuildableFacility.Cost, item)) {
-			continue;
-		}
 
 		facilityName = BuildableFacility.DisplayName;
+		bUnknown = false;
 		if(!XComHQ.MeetsEnoughRequirementsToBeVisible(BuildableFacility.Requirements)) {
 			if(ShowSpoilers == 0) {
 				continue;
 			} else if(ShowSpoilers == 1) {
-				hasUnknownTech = true;
-				continue;
+				bUnknown = true;
+				//continue;
 			} else if(ShowSpoilers == 2) {
 				facilityName = facilityName$"*";
 			}
 		}
-
-		result $= GetStringForCosts(BuildableFacility.Cost, item, coloredText(facilityName, facilityColor));
+		FillInCostsForCost(BuildableFacility.Cost, `coloredText(facilityName, facilityColor), bUnknown);
 	}
 
 	BuildableFacilityUpgrades = class'TechTreeHelpers'.static.GetFutureFacilityUpgrades();
 	foreach BuildableFacilityUpgrades(BuildableFacilityUpgrade) {
-		if(!IsItemRequired(BuildableFacilityUpgrade.Cost, item)) {
-			continue;
-		}
 
 		facilityName = BuildableFacilityUpgrade.DisplayName;
+		bUnknown = false;
 		if(!XComHQ.MeetsEnoughRequirementsToBeVisible(BuildableFacilityUpgrade.Requirements) || !HasFacilityToBuildUpgrade(BuildableFacilityUpgrade)) {
 			if(ShowSpoilers == 0) {
 				continue;
 			} else if(ShowSpoilers == 1) {
-				hasUnknownTech = true;
-				continue;
+				bUnknown = true;
+				//continue;
 			} else if(ShowSpoilers == 2) {
 				facilityName = facilityName$"*";
 			}
 		}
 
-		result $= GetStringForCosts(BuildableFacilityUpgrade.Cost, item, coloredText(facilityName, facilityColor));
+		FillInCostsForCost(BuildableFacilityUpgrade.Cost, `coloredText(facilityName, facilityColor), bUnknown);
 	}	
-
-	return result;
 }
+
 
 function bool HasFacilityToBuildUpgrade(X2FacilityUpgradeTemplate UpgradeTemplate) {
 	local array<X2FacilityUpgradeTemplate> arrFacilityUpgrades;
@@ -211,25 +232,23 @@ function int SortTechs(XComGameState_Tech A, XComGameState_Tech B) {
 	return typeB - typeA;
 }
 
-function string getTechsText(X2ItemTemplate item) {
+function SearchAllTechs() {
 	local array<XComGameState_Tech> techs;
 	local XComGameState_Tech TechState;
 	local X2TechTemplate Template;
 	local XComGameState_HeadquartersXCom XComHQ;
 	local string techName;
 	local string techColor;
-	local string result;
+
+	local bool bUnknown;
 
 	XComHQ = `XCOMHQ;
-	result = "";
+
 
 	techs = class'TechTreeHelpers'.static.GetFutureTechs();
 	techs.Sort(SortTechs);
 	foreach techs(TechState) {
 		Template = TechState.GetMyTemplate();
-		if(!IsItemRequired(Template.Cost, item)) {
-			continue;
-		}
 
 		techName = TechState.GetDisplayName();
 		switch (GetTechType(TechState)) {
@@ -246,23 +265,21 @@ function string getTechsText(X2ItemTemplate item) {
 				techColor = class'UIUtilities_Colors'.const.NORMAL_HTML_COLOR;
 				break;
 		}
-
+		bUnknown = false;
 		if(!XComHQ.MeetsEnoughRequirementsToBeVisible(Template.Requirements)) {
 			if(ShowSpoilers == 0) {
 				continue;
 			} else if(ShowSpoilers == 1) {
-				hasUnknownTech = true;
-				continue;
+				bUnknown = true;
+				// continue;
 			} else if(ShowSpoilers == 2) {
 				techName = techName$"*";
 			}
 		}
 
-		result $= GetStringForCosts(Template.Cost, item, coloredText(techName, techColor));
+		FillInCostsForCost(Template.Cost, `coloredText(techName, techColor), bUnknown);
 	}
 
-
-	return result;
 }
 
 function bool IsResearch(XComGameState_Tech TechState) {
@@ -286,70 +303,63 @@ function bool IsItemVisible(X2ItemTemplate ItemTemplate) {
 }
 
 
-function string getTechStateText(array<StateObjectReference> techs, string htmlColor, X2ItemTemplate item) {
-	local XComGameState_Tech TechState;
-	local XComGameStateHistory History;
-	local StateObjectReference Project;
-	local string result;
-	result = "";
-
-	History = `XCOMHISTORY;
-	foreach techs(Project) {
-		TechState = XComGameState_Tech(History.GetGameStateForObjectID(Project.ObjectID));
-		result $= GetStringForCosts(TechState.GetMyTemplate().Cost, item, coloredText(TechState.GetDisplayName(), htmlColor));
-	}
-
-	return result;	
-}
-
-function bool IsItemRequired(StrategyCost StrategyCost, X2ItemTemplate item) {
+function FillInCostsForCost(StrategyCost StrategyCost, string displayString, bool bUnknown)
+{
 	local ArtifactCost ArtifactCost;
-	local X2ItemTemplate CostItem;
+	
+	local UsedResource EmptyRes;
+
+	local int FoundIdx;
 
 	foreach StrategyCost.ResourceCosts(ArtifactCost) {
-		CostItem = ItemTemplateManager.FindItemTemplate(ArtifactCost.ItemTemplateName);
-		if(CostItem != none && CostItem == item) {
-			return true;
+		// relevant?
+		if (ItemsToSell.Find(ArtifactCost.ItemTemplateName) == INDEX_NONE)
+		{
+			continue;
+		}
+		// is it already in there?
+		FoundIdx = GatheredCosts.Find('TemplateName', ArtifactCost.ItemTemplateName);
+		// if not, do so
+		if (FoundIdx == INDEX_NONE)
+		{
+			FoundIdx = GatheredCosts.Length;
+			GatheredCosts[FoundIdx] = EmptyRes;
+			GatheredCosts[FoundIdx].TemplateName = ArtifactCost.ItemTemplateName;
+		}
+		if (bUnknown)
+		{
+			GatheredCosts[FoundIdx].bHasUnknownCost = true;
+		}
+		else
+		{
+			GatheredCosts[FoundIdx].Uses =  GatheredCosts[FoundIdx].Uses $ displayString $ " (" $ ArtifactCost.Quantity $ ")<br/>";
 		}
 	}
 
 	foreach StrategyCost.ArtifactCosts(ArtifactCost) {
-		CostItem = ItemTemplateManager.FindItemTemplate(ArtifactCost.ItemTemplateName);
-		if(CostItem != none && CostItem == item) {
-			return true;
+		// relevant?
+		if (ItemsToSell.Find(ArtifactCost.ItemTemplateName) == INDEX_NONE)
+		{
+			continue;
+		}
+		// is it already in there?
+		FoundIdx = GatheredCosts.Find('TemplateName', ArtifactCost.ItemTemplateName);
+		// if not, do so
+		if (FoundIdx == INDEX_NONE)
+		{
+			FoundIdx = GatheredCosts.Length;
+			GatheredCosts[FoundIdx] = EmptyRes;
+			GatheredCosts[FoundIdx].TemplateName = ArtifactCost.ItemTemplateName;
+		}
+		if (bUnknown)
+		{
+			GatheredCosts[FoundIdx].bHasUnknownCost = true;
+		}
+		else
+		{
+			GatheredCosts[FoundIdx].Uses =  GatheredCosts[FoundIdx].Uses $ displayString $ " (" $ ArtifactCost.Quantity $ ")<br/>";
 		}
 	}
-
-	return false;
-}
-
-function string GetStringForCosts(StrategyCost StrategyCost, X2ItemTemplate item, string displayString) {
-	local string result;
-	local ArtifactCost ArtifactCost;
-	local X2ItemTemplate CostItem;
-
-	result = "";
-
-	foreach StrategyCost.ResourceCosts(ArtifactCost) {
-		CostItem = ItemTemplateManager.FindItemTemplate(ArtifactCost.ItemTemplateName);
-		if(CostItem != none && CostItem == item) {
-			result $= displayString $ " (" $ ArtifactCost.Quantity $ ")<br/>";
-		}
-	}
-
-	foreach StrategyCost.ArtifactCosts(ArtifactCost) {
-		CostItem = ItemTemplateManager.FindItemTemplate(ArtifactCost.ItemTemplateName);
-		if(CostItem != none && CostItem == item) {
-			result $= displayString $ " (" $ ArtifactCost.Quantity $ ")<br/>";
-		}
-	}
-
-	return result;
-}
-
-
-function string coloredText(string text, string htmlColor) {
-	return "<font color='#"$htmlColor$"'>"$text$"</font>";
 }
 
 defaultproperties

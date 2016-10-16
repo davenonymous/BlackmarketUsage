@@ -26,6 +26,11 @@ Static function array<XComGameState_Tech> GetFutureTechs() {
 	XComHQ = `XCOMHQ;
 
 	foreach History.IterateByClassType(class'XComGameState_Tech', TechState) {
+		if (TechState.GetMyTemplate() == none)
+		{
+			// this can happen if mods that are disabled added techs previously
+			continue;
+		}
 		// Already built and not repeatable
 		if((XComHQ.TechIsResearched(TechState.GetReference()) || IsTechCurrentlyBeingResearched(TechState)) && !TechState.GetMyTemplate().bRepeatable) {
 			continue;
