@@ -44,6 +44,10 @@ function Maketh(UIBlackMarket_Sell screen, optional bool refresh) {
 
 	ItemTemplateManager = class'X2ItemTemplateManager'.static.GetItemTemplateManager();
 
+	// initialize in case of multiple runs
+	GatheredCosts.Length = 0;
+	ItemsToSell.Length = 0;
+
 	for(itemIndex = 0; itemIndex < screen.List.ItemCount; itemIndex++) {
 		ListItem = UIBlackMarket_SellItem(screen.List.GetItem(itemIndex));		
 		
