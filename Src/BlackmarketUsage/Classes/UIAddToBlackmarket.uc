@@ -1,12 +1,11 @@
-class UIAddToBlackmarket extends UIScreenListener config(BlackmarketUsage);
+class UIAddToBlackmarket extends UIScreenListener;
 
 // performance optimization (lessen the amount of function calls)
 `define coloredtext(text, color) "<font color='#"$`color$"'>"$`text$"</font>"
 
 var X2ItemTemplateManager ItemTemplateManager;
 
-var config int ShowSpoilers;
-
+var BlackmarketUsage_Settings Settings;
 
 // iterate over everything buildable, and fill the list
 // lookups using .Find happen in native code and are fast
@@ -43,6 +42,7 @@ function Maketh(UIBlackMarket_Sell screen, optional bool refresh) {
 	local int IndexInArray;
 
 	ItemTemplateManager = class'X2ItemTemplateManager'.static.GetItemTemplateManager();
+	Settings = new class'BlackmarketUsage_Settings';
 
 	// initialize in case of multiple runs
 	GatheredCosts.Length = 0;
@@ -119,11 +119,11 @@ function SearchAllBuildableItems()
 		}
 		bUnknown = false;
 		if(!IsItemVisible(BuildableItem)) {
-			if(ShowSpoilers == 0) {
+			if(Settings.ShowSpoilers == "Don't show") {
 				continue;
-			} else if(ShowSpoilers == 1) {
+			} else if(Settings.ShowSpoilers == "Obfuscate") {
 				bUnknown = true;
-			} else if(ShowSpoilers == 2) {
+			} else if(Settings.ShowSpoilers == "Show") {
 				itemName = itemName$"*";
 			}
 		}
@@ -155,12 +155,12 @@ function SearchAllFacilities() {
 		facilityName = BuildableFacility.DisplayName;
 		bUnknown = false;
 		if(!XComHQ.MeetsEnoughRequirementsToBeVisible(BuildableFacility.Requirements)) {
-			if(ShowSpoilers == 0) {
+			if(Settings.ShowSpoilers == "Don't show") {
 				continue;
-			} else if(ShowSpoilers == 1) {
+			} else if(Settings.ShowSpoilers == "Obfuscate") {
 				bUnknown = true;
 				//continue;
-			} else if(ShowSpoilers == 2) {
+			} else if(Settings.ShowSpoilers == "Show") {
 				facilityName = facilityName$"*";
 			}
 		}
@@ -173,12 +173,12 @@ function SearchAllFacilities() {
 		facilityName = BuildableFacilityUpgrade.DisplayName;
 		bUnknown = false;
 		if(!XComHQ.MeetsEnoughRequirementsToBeVisible(BuildableFacilityUpgrade.Requirements) || !HasFacilityToBuildUpgrade(BuildableFacilityUpgrade)) {
-			if(ShowSpoilers == 0) {
+			if(Settings.ShowSpoilers == "Don't show") {
 				continue;
-			} else if(ShowSpoilers == 1) {
+			} else if(Settings.ShowSpoilers == "Obfuscate") {
 				bUnknown = true;
 				//continue;
-			} else if(ShowSpoilers == 2) {
+			} else if(Settings.ShowSpoilers == "Show") {
 				facilityName = facilityName$"*";
 			}
 		}
@@ -271,12 +271,12 @@ function SearchAllTechs() {
 		}
 		bUnknown = false;
 		if(!XComHQ.MeetsEnoughRequirementsToBeVisible(Template.Requirements)) {
-			if(ShowSpoilers == 0) {
+			if(Settings.ShowSpoilers == "Don't show") {
 				continue;
-			} else if(ShowSpoilers == 1) {
+			} else if(Settings.ShowSpoilers == "Obfuscate") {
 				bUnknown = true;
 				// continue;
-			} else if(ShowSpoilers == 2) {
+			} else if(Settings.ShowSpoilers == "Show") {
 				techName = techName$"*";
 			}
 		}
