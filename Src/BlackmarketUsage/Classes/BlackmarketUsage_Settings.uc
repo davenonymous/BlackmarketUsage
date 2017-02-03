@@ -9,7 +9,10 @@ var config int ConfigVersion;
 
 event OnInit(UIScreen Screen)
 {
-    `MCM_API_Register(Screen, ClientModCallback);
+    if (MCM_API(Screen) != none)
+    {
+        `MCM_API_Register(Screen, ClientModCallback);
+    }
 
     if(UIShell(Screen) != none)
     {
