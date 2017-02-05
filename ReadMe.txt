@@ -11,6 +11,13 @@ If you don't want to use that and instead change this the old fashioned way,
 run the game at least once, then edit:
  Documents\My Games\XCOM2\XComGame\Config\XComBlackmarketUsage_Settings.ini
 
+Valid choices for the ShowSpoilers option are:
+[list]
+[*] Don't show = only show items from your current research level
+[*] "Show" = show everything you have not researched/built yet
+[*] "Obfuscate" = obfuscate what will be shown by displaying unresearched tech/gear as '???'
+[/list]
+
 Thanks to Robojumper for fixing some performance issues and
 BlueRaja for adding Mod Config Menu Support.
 
