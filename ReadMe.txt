@@ -13,7 +13,7 @@ run the game at least once, then edit:
 
 Valid choices for the ShowSpoilers option are:
 [list]
-[*] Don't show = only show items from your current research level
+[*] "Don't show" = only show items from your current research level
 [*] "Show" = show everything you have not researched/built yet
 [*] "Obfuscate" = obfuscate what will be shown by displaying unresearched tech/gear as '???'
 [/list]
